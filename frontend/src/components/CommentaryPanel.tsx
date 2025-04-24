@@ -9,48 +9,86 @@ interface Props {
   bowlerId: string | null;
   onEvent: () => void;
 }
-const defaultExtras: ExtraType = {
-  wide: 0,
-  noBall: 0,
-  bye: 0,
-  legBye: 0,
-  overthrow: 0,
-};
 
-const buttons = [
-  { label: "0", type: "normal", extras: defaultExtras },
-  { label: "1", type: "normal", extras: defaultExtras },
-  { label: "2", type: "normal", extras: defaultExtras },
-  { label: "3", type: "normal", extras: defaultExtras },
-  { label: "4", type: "normal", extras: defaultExtras },
-  { label: "6", type: "normal", extras: defaultExtras },
-  { label: "Wicket", type: "wicket", extras: defaultExtras },
-  {
-    label: "Wide",
-    type: "wide",
-    extras: { wide: 1, noBall: 0, bye: 0, legBye: 0, overthrow: 0 },
-  },
-  {
-    label: "NoBall",
-    type: "noball",
-    extras: { wide: 0, noBall: 1, bye: 0, legBye: 0, overthrow: 0 },
-  },
-  {
-    label: "Bye",
-    type: "bye",
-    extras: { wide: 0, noBall: 0, bye: 1, legBye: 0, overthrow: 0 },
-  },
-  {
-    label: "LegBye",
-    type: "legbye",
-    extras: { wide: 0, noBall: 0, bye: 0, legBye: 1, overthrow: 0 },
-  },
-  {
-    label: "Overthrow",
-    type: "overthrow",
-    extras: { wide: 0, noBall: 0, bye: 0, legBye: 0, overthrow: 1 },
-  },
-];
+const generateButtons = () => {
+  const buttons: {
+    label: string;
+    type: string;
+    runs: number;
+    extras: ExtraType;
+  }[] = [];
+
+  const runOptions = [0, 1, 2, 3, 4, 6];
+
+  // Normal deliveries and with overthrow
+  runOptions.forEach((run) => {
+    buttons.push({
+      label: `${run}`,
+      type: "normal",
+      runs: run,
+      extras: { wide: 0, noBall: 0, bye: 0, legBye: 0, overthrow: 0 },
+    });
+
+    buttons.push({
+      label: `${run} + Overthrow`,
+      type: "normal",
+      runs: run + 1,
+      extras: { wide: 0, noBall: 0, bye: 0, legBye: 0, overthrow: 1 },
+    });
+  });
+
+  // Complex extras
+  const flags = [0, 1];
+  flags.forEach((w) => {
+    flags.forEach((nb) => {
+      flags.forEach((bye) => {
+        flags.forEach((legBye) => {
+          flags.forEach((ot) => {
+            const total = w + nb + bye + legBye + ot;
+            if (total === 0) return; // skip plain zero
+            const extras: ExtraType = {
+              wide: w,
+              noBall: nb,
+              bye,
+              legBye,
+              overthrow: ot,
+            };
+
+            let type = "normal";
+            if (w) type = "wide";
+            else if (nb) type = "noball";
+            else if (bye) type = "bye";
+            else if (legBye) type = "legbye";
+
+            const parts = [];
+            if (nb) parts.push("NoBall");
+            if (w) parts.push("Wide");
+            if (bye) parts.push("Bye");
+            if (legBye) parts.push("LegBye");
+            if (ot) parts.push("Overthrow");
+
+            buttons.push({
+              label: parts.join(" + "),
+              type,
+              runs: 1,
+              extras,
+            });
+          });
+        });
+      });
+    });
+  });
+
+  // Wicket
+  buttons.push({
+    label: "Wicket",
+    type: "wicket",
+    runs: 0,
+    extras: { wide: 0, noBall: 0, bye: 0, legBye: 0, overthrow: 0 },
+  });
+
+  return buttons;
+};
 
 export default function CommentaryPanel({
   matchId,
@@ -60,8 +98,14 @@ export default function CommentaryPanel({
   onEvent,
 }: Props) {
   const API = import.meta.env.VITE_API_URL;
+  const buttons = generateButtons();
 
-  const send = async (btn: any) => {
+  const send = async (btn: {
+    label: string;
+    type: string;
+    runs: number;
+    extras: ExtraType;
+  }) => {
     if (!strikerId || !bowlerId) {
       alert("Striker or bowler not set.");
       return;
@@ -71,15 +115,7 @@ export default function CommentaryPanel({
       matchId,
       ballNumber: ballCount,
       type: btn.type,
-      runs:
-        btn.type === "normal"
-          ? Number(btn.label)
-          : btn.extras.overthrow ||
-            btn.extras.noball ||
-            btn.extras.wide ||
-            btn.extras.bye ||
-            btn.extras.legBye ||
-            0,
+      runs: btn.runs,
       extras: btn.extras,
       batsmanId: strikerId,
       bowlerId: bowlerId,
@@ -95,12 +131,12 @@ export default function CommentaryPanel({
   };
 
   return (
-    <div className="space-y-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
+    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 max-h-[80vh] overflow-y-auto p-2">
       {buttons.map((b) => (
         <button
-          key={b.label}
+          key={b.label + JSON.stringify(b.extras)}
           onClick={() => send(b)}
-          className="w-full py-4 bg-gray-200 rounded text-center cursor-pointer"
+          className="w-full py-3 px-4 bg-blue-100 hover:bg-blue-200 rounded-xl shadow text-center font-semibold cursor-pointer"
         >
           {b.label}
         </button>
